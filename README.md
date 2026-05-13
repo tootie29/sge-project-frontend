@@ -1,120 +1,158 @@
-# SGE Mini-CRM — Admin Frontend
+# SGE CRM — Admin Frontend (HTML + Alpine.js + HTMX)
 
-Next.js 16 (App Router) + TypeScript + Tailwind v4 + shadcn/ui.
-Admin dashboard for the [SGE Mini-CRM FastAPI backend](../sge-project-001).
+A plain static site for the SGE Mini-CRM admin. No build step, no Node, no
+framework. Three files do the whole job.
 
-## What's in v1
+**Two libraries, two jobs:**
+- **Alpine.js** drives client-only state — hash routing, sidebar search, the
+  Critical/Regular toggle, the New Action Item form.
+- **HTMX** drives server interactions — loading the action items table,
+  loading the action item detail, loading comments and threads, posting
+  comments and edits. Each call hits a Jinja2-rendered endpoint on the
+  FastAPI that returns ready-to-swap HTML.
 
-- **/clients** — list of clients (from `GET /clients/all/`)
-- **/action-items** — table with search, client filter, pagination
-- **/action-items/new** — create form
-- **/action-items/[id]** — detail + threaded comments + edit / delete
-- **/login** + **/auth/callback** — stubs; auth wiring is deferred to a later pass
+## What's in this folder
 
-All backend calls happen **server-side** (Server Components + Server Actions),
-so the browser never talks to FastAPI directly. This means we don't need to
-configure CORS on the backend for v1.
+```
+index.html          The whole UI shell + page templates (hash-routed SPA)
+assets/styles.css   Dark navy + mint palette, 18px base, all custom styles
+assets/app.js       Alpine.js components, hash router, API client
+README.md           This file
+```
 
-## Prerequisites
+That's it — open `index.html` in any browser and it runs. Drop the folder on
+any static host (GitHub Pages, Netlify, Cloudflare Pages, S3, a USB stick) and
+it serves.
 
-- Node 22+ and npm 10+
-- The FastAPI backend running at `http://127.0.0.1:8000` (or override via
-  `API_BASE_URL` in `.env.local`)
+## Configuration
 
-## Local setup
+The FastAPI base URL is a single constant at the top of
+[`assets/app.js`](./assets/app.js):
+
+```js
+const API_BASE_URL = "https://dipper-tidy-unwoven.ngrok-free.dev";
+```
+
+If the ngrok tunnel rotates or you move the backend to a real host, edit that
+one line.
+
+## Backend requirement: CORS
+
+Because everything runs in the browser and talks to the FastAPI directly, the
+backend must allow this origin. Already added to
+[`sge-project-001/main.py`](../sge-project-001/main.py):
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4321",
+        "http://127.0.0.1:4321",
+        "https://sge-project-frontend.vercel.app",
+    ],
+    allow_origin_regex=r"https://sge-project-frontend-.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+Add additional origins to `allow_origins` if you host the static files
+elsewhere. Restart the FastAPI server for the change to take effect.
+
+## How the app works
+
+- **Hash routing**: every page lives at a hash URL — `#/`, `#/action-items`,
+  `#/action-items/123?client_id=44`, etc. Works on any static host with zero
+  rewrite configuration.
+- **Single Alpine root**: the entire app is one `<body x-data="app()">`. The
+  `app()` factory in `assets/app.js` holds all state and methods.
+- **Per-client scoping**: selecting a client in the sidebar adds
+  `?client_id=N` to the hash. Tabs (BI / Action Items / Rank Tracker /
+  Website Status) only appear once a client is selected; clicking another
+  client preserves whichever tab you're on. First-time selection lands on
+  Business Intelligence.
+- **Pages**:
+  - `#/` — landing
+  - `#/action-items` — list (Critical / Regular toggle, status pills)
+  - `#/action-items/:id` — detail + edit + delete + threaded comments
+  - `#/action-items/new` — create form
+  - `#/business-intelligence`, `#/rank-tracker`, `#/website-status` — stubs
+    until those FastAPI endpoints exist
+  - `#/clients` — clients table
+  - `#/login`, `#/auth/callback` — auth stubs
+
+## Known gaps
+
+- **`DATETIME` column shows `—`**: the FastAPI select string at
+  `sge-project-001/src/includes/classes/database.py:63` doesn't expose
+  `created_at`. Add it to the select and the column populates automatically.
+- **Pagination is on page 1 only** for action items right now (limit 50).
+  Note the backend `range_from` bug at
+  `sge-project-001/src/includes/classes/database.py:71` — pages > 1 return
+  wrong ranges until that's fixed.
+- **Business Intelligence, Rank Tracker, Website Status** are stubs — no
+  backend endpoints yet.
+- **Auth** isn't wired. All routes are open.
+
+## Deploying
+
+Anywhere. A few examples:
 
 ```bash
-cp .env.example .env.local         # default points at 127.0.0.1:8000
-npm install                        # already done by the scaffolder
-npm run dev                        # http://localhost:3000
+# GitHub Pages (push the folder to a gh-pages branch)
+git init gh-pages-only
+cd gh-pages-only
+cp -r ../{index.html,assets,README.md} .
+git checkout -b gh-pages
+git add . && git commit -m "publish"
+git remote add origin <your repo url>
+git push -u origin gh-pages
+
+# Netlify drag-and-drop: zip the folder and drop it on https://app.netlify.com/drop
+# Cloudflare Pages: npx wrangler pages deploy . --project-name sge-crm-admin
+# Vercel:           npx vercel --prod
+# Local preview:    npx serve .  (or python3 -m http.server 8080)
 ```
 
-## Environment
+No build step, so whatever folder you have here is exactly what gets served.
 
-| Variable        | Default                  | Notes                                  |
-| --------------- | ------------------------ | -------------------------------------- |
-| `API_BASE_URL`  | `http://127.0.0.1:8000`  | FastAPI base URL, no trailing slash    |
+## CDN dependencies
 
-`API_BASE_URL` is **server-only** on purpose — no `NEXT_PUBLIC_` prefix. When
-auth is added later, the Supabase bearer will be attached server-side from a
-cookie, so the token never ships to the browser.
+Loaded at runtime from CDNs in `index.html`:
+- [HTMX 2.0.3](https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js) — pinned, ~14 KB minified+gzipped.
+- [Alpine.js 3.14.1](https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js)
+  — pinned, ~14 KB minified+gzipped.
+- [Inter](https://fonts.google.com/specimen/Inter) +
+  [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono) from
+  Google Fonts.
 
-## File layout
+## Backend HTML endpoints (used by HTMX)
 
-```
-src/
-  app/
-    layout.tsx                       Admin shell + Toaster
-    page.tsx                         Redirects to /action-items
-    clients/page.tsx
-    action-items/
-      page.tsx                       List
-      new/page.tsx                   Create form
-      [id]/page.tsx                  Detail + comments
-      _components/                   Shared UI for the action-items routes
-    login/page.tsx                   Stub
-    auth/callback/page.tsx           Stub
-  components/
-    admin-shell.tsx
-    ui/                              shadcn primitives
-  lib/
-    api.ts                           Typed client mirroring the 12 endpoints
-    actions.ts                       Server Actions (mutations + thread fetch)
-    schemas.ts                       Zod schemas + TS types
-    env.ts                           API_BASE_URL with sensible fallback
-```
+These were added alongside the existing JSON endpoints in
+[`sge-project-001/main.py`](../sge-project-001/main.py) and render Jinja2
+templates from `sge-project-001/templates/`:
 
-## Backend endpoint coverage
+| Endpoint | Verb | Template | Used by |
+|---|---|---|---|
+| `/action-items/html/?client_id=&filter=critical\|regular` | GET | `action_items_rows.html` | Action items table body |
+| `/action-items/id/{id}/html/?client_id=` | GET | `action_item_detail.html` | Action item detail page |
+| `/action-items/update/{id}/html/` | POST | `action_item_detail.html` | Edit form submit |
+| `/action-items/{id}/html/` | DELETE | (empty + `HX-Redirect`) | Delete button |
+| `/comments/loop/{id}/html/` | GET | `comments_list.html` | Comments list under a detail |
+| `/comments/thread/{id}/html/` | GET | `comments_thread.html` | Reply thread for one comment |
+| `/comments/post/html/` | POST | `comments_list.html` | New comment form (refreshes list) |
+| `/comments/post-sub/html/` | POST | `comments_thread.html` | Reply form (refreshes thread) |
 
-| Backend endpoint                                          | Frontend usage                              |
-| --------------------------------------------------------- | ------------------------------------------- |
-| `GET /action-items/`                                      | `/action-items` (default view)              |
-| `GET /action-items/search/?query=`                        | `/action-items?q=…`                         |
-| `GET /action-items/client/{id}`                           | `/action-items?client_id=…`                 |
-| `GET /action-items/id/{id}`                               | `/action-items/[id]`                        |
-| `POST /action-items/new/`                                 | `/action-items/new` form                    |
-| `POST /action-items/update/{id}`                          | Edit panel on detail page                   |
-| `GET /action-items/delete/{id}` *(yes, GET — backend's choice)* | Delete button on detail page         |
-| `POST /comments/post/`                                    | Comments form on detail page                |
-| `POST /comments/post-sub/`                                | Reply form per comment                      |
-| `GET /comments/loop/{action_item_id}`                     | Parent comments on detail page              |
-| `GET /comments/thread/{parent_id}`                        | Lazy-loaded replies under a parent          |
-| `GET /clients/all/`                                       | `/clients` and the client filter dropdown   |
-| `GET /auth/login`, `GET /auth/callback`, `GET /user/me`   | **Not wired yet** — deferred to auth pass   |
+The existing JSON endpoints are unchanged — they're still used by Alpine for
+the sidebar's `/clients/all/` fetch and the New Action Item form's
+`POST /action-items/new/`.
 
-## Known backend issues to address
+**Restart the FastAPI server** after pulling the backend changes so the new
+routes and Jinja2 mount take effect.
 
-These do not block the frontend running, but will affect behavior:
-
-1. **Pagination bug** in `src/includes/classes/database.py:71` —
-   `range_from = (page-1) * (limit*(page-1))` compounds. Page 2 onwards will
-   return wrong ranges. Fix: `range_from = (page-1) * limit`.
-2. **Verb mismatches** — `update` is `POST`, `delete` is `GET`. The frontend
-   matches the backend as-is; consider normalizing to `PATCH` / `DELETE` later.
-3. **No CORS** configured on FastAPI. Not needed for v1 since all calls are
-   server-side, but required if anything ever calls the API from the browser.
-
-## Auth (deferred)
-
-The plan when we wire it:
-
-- Add `@supabase/ssr` and a server-only Supabase client.
-- `/login` triggers `signInWithOAuth({ provider: "google" })` with redirect to
-  `/auth/callback`.
-- `/auth/callback` exchanges the `code` for a session and writes httpOnly
-  cookies via Supabase's `@supabase/ssr` helpers.
-- A `middleware.ts` guards `/action-items/*` and `/clients/*` (everything but
-  `/login`, `/auth/*`, and static files).
-- `src/lib/api.ts` is extended to attach `Authorization: Bearer <jwt>` server-side,
-  read from the Supabase session cookie.
-- Until then, the FastAPI endpoints in `main.py` aren't protected with
-  `Depends(verify_session)`, so the frontend works unauthenticated.
-
-## Scripts
-
-```
-npm run dev      # turbopack dev server
-npm run build    # production build
-npm run start    # serve production build
-npm run lint     # eslint
-```
+Want to host these locally instead of via CDN? Download the files into
+`assets/` and update the `<script>` / `<link>` tags in `index.html`. Nothing
+in the app logic depends on the CDN URLs.
