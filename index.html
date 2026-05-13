@@ -372,18 +372,63 @@
                 </div>
               </template>
 
-              <!-- ========== Stubs (BI / RT / WS) ========== -->
+              <!-- ========== Business Intelligence ========== -->
               <template x-if="pageKey === 'stub-bi'">
-                <div class="stack-sm">
-                  <h1 class="page-title">Business Intelligence</h1>
-                  <p class="page-sub" x-text="clientName ? ('Insights for ' + clientName + '.') : 'Pick a client from the sidebar to view their insights.'"></p>
-                  <div class="muted-box">
-                    Not wired to the backend yet. The backend exposes a stub at
-                    <code>DB_business_intelligence</code> in
-                    <code>database.py</code> targeting the
-                    <code>insights_v2</code> table — endpoints still need to be
-                    added before this view can render real data per client.
+                <div class="stack">
+                  <div>
+                    <h1 class="page-title">Business Intelligence</h1>
+                    <p class="page-sub" x-text="clientName ? ('Insights for ' + clientName + '.') : 'Pick a client from the sidebar to view their insights.'"></p>
                   </div>
+
+                  <template x-if="!clientId">
+                    <div class="muted-box">Pick a client from the sidebar to view their insights.</div>
+                  </template>
+
+                  <template x-if="clientId && biCategories.length > 1">
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                      <template x-for="cat in biCategories" :key="cat">
+                        <button
+                          :class="biCategory === cat ? 'btn btn-primary' : 'btn btn-outline'"
+                          style="font-size: 0.8rem;"
+                          @click="biCategory = cat"
+                          x-text="cat"
+                        ></button>
+                      </template>
+                    </div>
+                  </template>
+
+                  <template x-if="clientId && biItems.length === 0">
+                    <div class="muted-box">No insights for this client yet.</div>
+                  </template>
+
+                  <ul x-show="clientId && biFiltered.length > 0" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem;">
+                    <template x-for="insight in biFiltered" :key="insight.id">
+                      <li class="card" style="padding: 0;">
+                        <button
+                          @click="toggleBI(insight.id)"
+                          style="display: flex; align-items: flex-start; gap: 0.75rem; width: 100%; padding: 1rem; background: transparent; border: 0; color: inherit; text-align: left; cursor: pointer;"
+                        >
+                          <span
+                            style="color: var(--color-primary); font-size: 1.1rem; line-height: 1.4; flex-shrink: 0; transition: transform 0.15s;"
+                            :style="biExpanded[insight.id] ? 'transform: rotate(90deg);' : ''"
+                          >›</span>
+                          <span style="flex: 1;">
+                            <span style="display: block; font-weight: 500; font-size: 0.95rem;" x-text="insight.summary || insight.content || '(no summary)'"></span>
+                            <span style="display: block; margin-top: 0.25rem; font-size: 0.7rem; color: var(--color-muted-foreground);">
+                              <span class="pill" style="font-size: 0.65rem;" x-text="insight.insight_category"></span>
+                              <span x-show="insight.created_at" x-text="' · ' + formatDate(insight.created_at)"></span>
+                            </span>
+                          </span>
+                        </button>
+                        <div
+                          x-show="biExpanded[insight.id]"
+                          x-cloak
+                          style="padding: 0 1rem 1rem 2.5rem; font-size: 0.9rem; color: var(--color-muted-foreground); white-space: pre-wrap;"
+                          x-text="insight.content"
+                        ></div>
+                      </li>
+                    </template>
+                  </ul>
                 </div>
               </template>
 

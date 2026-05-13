@@ -77,6 +77,10 @@ const apiClient = {
   clients: {
     all: () => api("/clients/all/").then(listFromResponse),
   },
+  bi: {
+    byClient: (clientId, params = {}) =>
+      api(`/business-intelligence/client/${clientId}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
+  },
 };
 
 function qs(obj) {
@@ -195,6 +199,7 @@ function app() {
       try {
         if (key === "action-items") await this.loadActionItems();
         else if (key === "action-items-detail") await this.loadDetail();
+        else if (key === "stub-bi") await this.loadBI();
       } catch (e) {
         this.pageError = `Failed to load (${e.status || "network"})`;
       }
@@ -309,6 +314,39 @@ function app() {
       } catch (e) {
         alert(`Reply failed: ${e.status || e.message}`);
       }
+    },
+
+    /* ============== Business Intelligence ============== */
+    biItems: [],
+    biCategory: null,
+    biExpanded: {},
+    async loadBI() {
+      this.biItems = [];
+      this.biCategory = null;
+      this.biExpanded = {};
+      if (!this.clientId) return;
+      const items = await apiClient.bi.byClient(this.clientId);
+      this.biItems = items;
+      if (items.length > 0) {
+        const first = items.find((i) => i.insight_category)?.insight_category;
+        this.biCategory = first ?? null;
+      }
+    },
+    get biCategories() {
+      const seen = new Set();
+      const out = [];
+      for (const i of this.biItems) {
+        const c = i.insight_category;
+        if (c && !seen.has(c)) { seen.add(c); out.push(c); }
+      }
+      return out;
+    },
+    get biFiltered() {
+      if (!this.biCategory) return this.biItems;
+      return this.biItems.filter((i) => i.insight_category === this.biCategory);
+    },
+    toggleBI(id) {
+      this.biExpanded[id] = !this.biExpanded[id];
     },
 
     /* ============== New form ============== */
