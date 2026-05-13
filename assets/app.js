@@ -371,10 +371,13 @@ function app() {
     biItems: [],
     biCategory: null,
     biExpanded: {},
+    biPage: 1,
+    biPageSize: 10,
     async loadBI() {
       this.biItems = [];
       this.biCategory = null;
       this.biExpanded = {};
+      this.biPage = 1;
       if (!this.clientId) return;
       const items = await apiClient.bi.byClient(this.clientId);
       this.biItems = items;
@@ -396,6 +399,20 @@ function app() {
       if (!this.biCategory) return this.biItems;
       return this.biItems.filter((i) => i.insight_category === this.biCategory);
     },
+    get biPaged() {
+      const start = (this.biPage - 1) * this.biPageSize;
+      return this.biFiltered.slice(start, start + this.biPageSize);
+    },
+    get biTotalPages() {
+      return Math.max(1, Math.ceil(this.biFiltered.length / this.biPageSize));
+    },
+    setBiCategory(cat) {
+      this.biCategory = cat;
+      this.biPage = 1;
+      this.biExpanded = {};
+    },
+    prevBiPage() { if (this.biPage > 1) this.biPage--; },
+    nextBiPage() { if (this.biPage < this.biTotalPages) this.biPage++; },
     toggleBI(id) {
       this.biExpanded[id] = !this.biExpanded[id];
     },

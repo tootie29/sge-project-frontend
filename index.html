@@ -441,7 +441,7 @@
                         <button
                           :class="biCategory === cat ? 'btn btn-primary' : 'btn btn-outline'"
                           style="font-size: 0.8rem;"
-                          @click="biCategory = cat"
+                          @click="setBiCategory(cat)"
                           x-text="cat"
                         ></button>
                       </template>
@@ -453,7 +453,7 @@
                   </template>
 
                   <ul x-show="clientId && biFiltered.length > 0" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem;">
-                    <template x-for="insight in biFiltered" :key="insight.id">
+                    <template x-for="insight in biPaged" :key="insight.id">
                       <li class="card" style="padding: 0;">
                         <button
                           @click="toggleBI(insight.id)"
@@ -481,6 +481,24 @@
                       </li>
                     </template>
                   </ul>
+
+                  <div
+                    x-show="clientId && biFiltered.length > biPageSize"
+                    x-cloak
+                    style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding-top: 0.5rem;"
+                  >
+                    <p class="page-sub" style="margin: 0;">
+                      Showing <span x-text="(biPage - 1) * biPageSize + 1"></span>–<span x-text="Math.min(biPage * biPageSize, biFiltered.length)"></span>
+                      of <span x-text="biFiltered.length"></span>
+                    </p>
+                    <div class="row">
+                      <button class="btn btn-outline" style="font-size: 0.8rem;" @click="prevBiPage()" :disabled="biPage <= 1">‹ Previous</button>
+                      <span class="page-sub" style="min-width: 4.5rem; text-align: center;">
+                        Page <span x-text="biPage"></span> / <span x-text="biTotalPages"></span>
+                      </span>
+                      <button class="btn btn-outline" style="font-size: 0.8rem;" @click="nextBiPage()" :disabled="biPage >= biTotalPages">Next ›</button>
+                    </div>
+                  </div>
                 </div>
               </template>
 
