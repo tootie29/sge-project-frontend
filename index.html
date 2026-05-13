@@ -502,11 +502,70 @@
               </template>
 
               <template x-if="pageKey === 'stub-ws'">
-                <div class="stack-sm">
-                  <h1 class="page-title">Website Status</h1>
-                  <p class="page-sub" x-text="clientName ? ('Website availability for ' + clientName + '.') : 'Pick a client from the sidebar to view their website status.'"></p>
-                  <div class="muted-box">
-                    Not wired to the backend yet — placeholder for the fourth tab.
+                <div class="stack">
+                  <div class="between">
+                    <div>
+                      <h1 class="page-title">Website Status</h1>
+                      <p class="page-sub" x-text="clientName ? ('Website availability for ' + clientName + '.') : 'Pick a client from the sidebar to view their website status.'"></p>
+                    </div>
+                    <button class="btn btn-outline" style="font-size: 0.8rem; padding: 0.4rem 0.6rem;" @click="loadWebsiteStatus()" :disabled="wsLoading" aria-label="Refresh">
+                      <span x-text="wsLoading ? '…' : '↻'"></span>
+                    </button>
+                  </div>
+
+                  <template x-if="!clientId">
+                    <div class="muted-box">Pick a client from the sidebar to view their website status.</div>
+                  </template>
+
+                  <template x-if="clientId && wsBackendMissing">
+                    <div class="muted-box">
+                      <p style="margin: 0 0 0.5rem 0; color: var(--color-foreground);"><strong>Backend endpoint not yet implemented.</strong></p>
+                      <p style="margin: 0 0 0.5rem 0;">Expected:</p>
+                      <pre style="margin: 0 0 0.5rem 0; font-size: 0.75rem; background: var(--color-muted); padding: 0.5rem; border-radius: var(--radius);">GET /website-status/client/{id}
+
+[{
+  "id": 1,
+  "url": "https://example.com/contact",
+  "status": "up",          // up | degraded | down
+  "status_code": 200,
+  "response_time_ms": 245,
+  "last_checked": "2026-05-13T15:00:00Z"
+}, ...]</pre>
+                      <p style="margin: 0;">When this endpoint lands in <code>sge-project-001/main.py</code>, this view will populate automatically.</p>
+                    </div>
+                  </template>
+
+                  <template x-if="clientId && !wsBackendMissing && wsItems.length === 0 && !wsLoading">
+                    <div class="muted-box">No website checks for this client yet.</div>
+                  </template>
+
+                  <div x-show="clientId && wsItems.length > 0" class="table-wrap" x-cloak>
+                    <table class="data">
+                      <thead>
+                        <tr>
+                          <th>URL</th>
+                          <th style="width: 8rem;">Status</th>
+                          <th style="width: 6rem;">Code</th>
+                          <th style="width: 8rem; text-align: right;">Response</th>
+                          <th style="width: 12rem; text-align: right;">Last checked</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="row in wsItems" :key="row.id">
+                          <tr>
+                            <td style="font-weight: 500;">
+                              <a :href="row.url" target="_blank" rel="noopener" style="color: var(--color-primary); text-decoration: underline;" x-text="row.url || '—'"></a>
+                            </td>
+                            <td><span :class="wsStatusClass(row.status)" x-text="row.status || '—'"></span></td>
+                            <td><span :class="wsCodeClass(row.status_code)" x-text="row.status_code ?? '—'"></span></td>
+                            <td style="text-align: right; font-family: var(--font-mono); font-size: 0.8rem;">
+                              <span x-text="row.response_time_ms != null ? row.response_time_ms + ' ms' : '—'"></span>
+                            </td>
+                            <td style="text-align: right; color: var(--color-muted-foreground); font-size: 0.8rem;" x-text="formatDate(row.last_checked)"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </template>

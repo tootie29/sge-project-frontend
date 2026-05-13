@@ -85,6 +85,10 @@ const apiClient = {
     byClient: (clientId, params = {}) =>
       api(`/rank-tracker/client/${clientId}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
   },
+  websiteStatus: {
+    byClient: (clientId, params = {}) =>
+      api(`/website-status/client/${clientId}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
+  },
 };
 
 function qs(obj) {
@@ -205,6 +209,7 @@ function app() {
         else if (key === "action-items-detail") await this.loadDetail();
         else if (key === "stub-bi") await this.loadBI();
         else if (key === "stub-rt") await this.loadRankTracker();
+        else if (key === "stub-ws") await this.loadWebsiteStatus();
       } catch (e) {
         this.pageError = `Failed to load (${e.status || "network"})`;
       }
@@ -384,6 +389,42 @@ function app() {
     rtChangeLabel(n) {
       if (typeof n !== "number" || n === 0) return "0";
       return (n > 0 ? "↗ +" : "↘ ") + n;
+    },
+
+    /* ============== Website Status ============== */
+    wsItems: [],
+    wsBackendMissing: false,
+    wsLoading: false,
+    async loadWebsiteStatus() {
+      this.wsItems = [];
+      this.wsBackendMissing = false;
+      if (!this.clientId) return;
+      this.wsLoading = true;
+      try {
+        this.wsItems = await apiClient.websiteStatus.byClient(this.clientId);
+      } catch (e) {
+        if (e.status === 404 || e.status === 405) {
+          this.wsBackendMissing = true;
+        } else {
+          throw e;
+        }
+      } finally {
+        this.wsLoading = false;
+      }
+    },
+    wsStatusClass(s) {
+      const key = (s || "").toLowerCase();
+      if (key === "up" || key === "healthy" || key === "ok") return "pill pill-status-completed";
+      if (key === "degraded" || key === "slow" || key === "warning") return "pill pill-status-pending";
+      if (key === "down" || key === "error" || key === "fail") return "pill pill-priority-high";
+      return "pill";
+    },
+    wsCodeClass(code) {
+      if (typeof code !== "number") return "page-sub";
+      if (code >= 200 && code < 300) return "pill pill-status-completed";
+      if (code >= 300 && code < 400) return "pill pill-status-pending";
+      if (code >= 400) return "pill pill-priority-high";
+      return "pill";
     },
 
     /* ============== New form ============== */
