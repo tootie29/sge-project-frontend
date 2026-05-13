@@ -96,15 +96,6 @@
             </nav>
 
             <div class="page">
-              <!-- Loading sentinel -->
-              <template x-if="pageLoading">
-                <p class="page-sub">Loading…</p>
-              </template>
-
-              <template x-if="pageError">
-                <div class="alert-error" x-text="pageError"></div>
-              </template>
-
               <!-- ========== Home ========== -->
               <template x-if="pageKey === 'home'">
                 <div class="center-stack">
