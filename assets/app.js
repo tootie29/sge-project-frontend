@@ -372,7 +372,7 @@ function app() {
     biCategory: null,
     biExpanded: {},
     biPage: 1,
-    biPageSize: 6,
+    biPageSize: 5,
     async loadBI() {
       this.biItems = [];
       this.biCategory = null;
