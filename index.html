@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
   <link rel="stylesheet" href="assets/styles.css" />
-  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
   <script src="assets/app.js"></script>
 </head>
@@ -109,23 +108,17 @@
                 </div>
               </template>
 
-              <!-- ========== Action items list (HTMX) ========== -->
+              <!-- ========== Action items list ========== -->
               <template x-if="pageKey === 'action-items'">
-                <div class="stack" x-data="actionItemsList">
+                <div class="stack">
                   <div class="between">
                     <div>
                       <h1 class="page-title">Action Items</h1>
                       <p class="page-sub" x-text="clientName ? ('Tasks for ' + clientName + '.') : 'Manage and monitor high-priority operational tasks across the terminal node.'"></p>
                     </div>
                     <div class="toggle-group">
-                      <button
-                        :class="filter === 'critical' ? 'active' : ''"
-                        @click="setFilter('critical')"
-                      >Critical</button>
-                      <button
-                        :class="filter === 'regular' ? 'active' : ''"
-                        @click="setFilter('regular')"
-                      >Regular</button>
+                      <button :class="listFilter === 'critical' ? 'active' : ''" @click="listFilter = 'critical'">Critical</button>
+                      <button :class="listFilter === 'regular' ? 'active' : ''" @click="listFilter = 'regular'">Regular</button>
                     </div>
                   </div>
 
@@ -140,28 +133,158 @@
                           <th style="width: 6rem; text-align: right;">Flag</th>
                         </tr>
                       </thead>
-                      <tbody
-                        id="items-rows"
-                        :hx-get="rowsUrl"
-                        hx-trigger="load, refresh-rows"
-                        hx-swap="innerHTML"
-                      >
-                        <tr class="empty-row"><td colspan="5">Loading…</td></tr>
+                      <tbody>
+                        <template x-if="listItems.length === 0 && !pageLoading">
+                          <tr class="empty-row"><td colspan="5">No <span x-text="listFilter"></span> action items.</td></tr>
+                        </template>
+                        <template x-for="item in listItems" :key="item.id">
+                          <tr>
+                            <td style="color: var(--color-muted-foreground); font-size: 0.75rem;">—</td>
+                            <td><span :class="priorityClass(item.priority)" x-text="item.priority || '—'"></span></td>
+                            <td><span :class="statusClass(item.status)" x-text="(item.status || '—').replace(/_/g, ' ')"></span></td>
+                            <td>
+                              <a :href="'#/action-items/' + item.id + (clientId ? '?client_id=' + clientId : '')" style="font-weight: 500;" x-text="item.title || '(untitled)'"></a>
+                            </td>
+                            <td style="text-align: right;">
+                              <template x-if="item.critical">
+                                <span class="pill pill-critical">CRITICAL</span>
+                              </template>
+                            </td>
+                          </tr>
+                        </template>
                       </tbody>
                     </table>
                   </div>
                 </div>
               </template>
 
-              <!-- ========== Action item detail (HTMX) ========== -->
-              <template x-if="pageKey === 'action-items-detail'">
-                <div
-                  id="detail-root"
-                  :hx-get="detailUrl"
-                  hx-trigger="load"
-                  hx-swap="innerHTML"
-                >
-                  <p class="page-sub">Loading…</p>
+              <!-- ========== Action item detail ========== -->
+              <template x-if="pageKey === 'action-items-detail' && detailItem">
+                <div class="stack">
+                  <a class="btn btn-ghost" :href="'#/action-items' + (clientId ? '?client_id=' + clientId : '')">← Back to list</a>
+
+                  <article class="card stack">
+                    <div class="between">
+                      <div>
+                        <h1 class="page-title" x-text="detailItem.title || '(untitled)'"></h1>
+                        <p class="page-sub">
+                          <span style="font-family: var(--font-mono);" x-text="'#' + detailItem.id"></span>
+                          <template x-if="detailItem.client">
+                            <span x-text="' · ' + (detailItem.client.name || ('Client #' + detailItem.client.id))"></span>
+                          </template>
+                        </p>
+                      </div>
+                      <div class="row" style="flex-wrap: wrap;">
+                        <span :class="priorityClass(detailItem.priority)" x-text="detailItem.priority || '—'"></span>
+                        <span :class="statusClass(detailItem.status)" x-text="(detailItem.status || '—').replace(/_/g, ' ')"></span>
+                        <template x-if="detailItem.critical">
+                          <span class="pill pill-critical">CRITICAL</span>
+                        </template>
+                      </div>
+                    </div>
+
+                    <p style="white-space: pre-wrap; font-size: 0.9rem;" x-text="detailItem.description || '—'"></p>
+
+                    <div class="row">
+                      <button class="btn btn-outline" @click="detailEditing = !detailEditing" x-text="detailEditing ? 'Cancel edit' : 'Edit'"></button>
+                      <button class="btn btn-outline btn-danger" @click="deleteDetail()">Delete</button>
+                    </div>
+
+                    <form x-show="detailEditing" class="card stack-sm" style="padding: 1rem;" @submit.prevent="saveDetail()" x-cloak>
+                      <div>
+                        <label class="label">Title</label>
+                        <input class="input" x-model="detailForm.title" />
+                      </div>
+                      <div>
+                        <label class="label">Description</label>
+                        <textarea class="input" rows="4" x-model="detailForm.description"></textarea>
+                      </div>
+                      <div class="grid-2">
+                        <div>
+                          <label class="label">Priority</label>
+                          <select class="input" x-model="detailForm.priority">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="label">Status</label>
+                          <select class="input" x-model="detailForm.status">
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In progress</option>
+                            <option value="ongoing">Ongoing</option>
+                            <option value="requested">Requested</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                        </div>
+                      </div>
+                      <label class="row" style="font-size: 0.85rem;">
+                        <input type="checkbox" x-model="detailForm.critical" />
+                        Critical
+                      </label>
+                      <button type="submit" class="btn btn-primary" :disabled="detailSaving" x-text="detailSaving ? 'Saving…' : 'Save changes'"></button>
+                    </form>
+                  </article>
+
+                  <section>
+                    <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem;">Comments</h2>
+
+                    <form class="card stack-sm" style="padding: 0.75rem;" @submit.prevent="postComment()">
+                      <textarea class="input" rows="3" placeholder="Add a comment…" x-model="commentText" required></textarea>
+                      <button type="submit" class="btn btn-primary" :disabled="commentPosting" x-text="commentPosting ? 'Posting…' : 'Post comment'" style="align-self: flex-start;"></button>
+                    </form>
+
+                    <template x-if="detailComments.length === 0">
+                      <p class="page-sub" style="margin-top: 1rem;">No comments yet.</p>
+                    </template>
+
+                    <ul style="margin-top: 0.75rem; padding: 0; list-style: none;">
+                      <template x-for="c in detailComments" :key="c.id">
+                        <li class="comment" x-data="commentRow(c, $root._x_dataStack[0])">
+                          <p class="comment-meta">
+                            #<span x-text="c.id"></span>
+                            <template x-if="c.created_at">
+                              <span> · <span x-text="formatDate(c.created_at)"></span></span>
+                            </template>
+                          </p>
+                          <p class="comment-body" x-text="c.text || ''"></p>
+
+                          <div class="row" style="margin-top: 0.5rem;">
+                            <button class="btn btn-ghost" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" @click="replying = !replying" x-text="replying ? 'Cancel' : 'Reply'"></button>
+                            <button class="btn btn-ghost" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" @click="toggleThread()" :disabled="loading">
+                              <span x-text="loading ? 'Loading…' : (Array.isArray(thread) ? 'Hide replies' : 'Show replies')"></span>
+                            </button>
+                          </div>
+
+                          <form x-show="replying" class="stack-sm" style="margin-top: 0.5rem;" @submit.prevent="submitReply()" x-cloak>
+                            <textarea class="input" rows="2" x-model="replyText" placeholder="Write a reply…" required></textarea>
+                            <button type="submit" class="btn btn-primary" style="align-self: flex-start;">Post reply</button>
+                          </form>
+
+                          <template x-if="Array.isArray(thread) && thread.length > 0">
+                            <ul class="thread" style="list-style: none;">
+                              <template x-for="r in thread" :key="r.id">
+                                <li class="comment">
+                                  <p class="comment-meta">
+                                    #<span x-text="r.id"></span>
+                                    <template x-if="r.created_at">
+                                      <span> · <span x-text="formatDate(r.created_at)"></span></span>
+                                    </template>
+                                  </p>
+                                  <p class="comment-body" x-text="r.text || ''"></p>
+                                </li>
+                              </template>
+                            </ul>
+                          </template>
+                          <template x-if="Array.isArray(thread) && thread.length === 0">
+                            <p class="page-sub" style="margin-top: 0.5rem; font-size: 0.75rem;">No replies yet.</p>
+                          </template>
+                        </li>
+                      </template>
+                    </ul>
+                  </section>
                 </div>
               </template>
 

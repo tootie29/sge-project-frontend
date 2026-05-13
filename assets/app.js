@@ -1,15 +1,14 @@
-/* SGE CRM admin — vanilla JS + Alpine.js + HTMX.
+/* SGE CRM admin — vanilla JS + Alpine.js.
  *
- * Alpine owns: hash routing, sidebar (search + selection), tab nav,
- * Critical/Regular toggle state, the New Action Item form.
+ * All data fetching is JSON via the Vercel rewrite proxy. The browser sees
+ * `/api/clients/all/` (same origin) and Vercel rewrites it to the ngrok
+ * tunnel server-side, so CORS is never an issue.
  *
- * HTMX owns: loading the action items table body, loading the action item
- * detail (which contains the edit form + comments). Comments + threads also
- * load via HTMX from within the detail fragment.
- *
- * Edit the next line if the FastAPI URL changes (e.g. ngrok rotation).
+ * If the FastAPI URL changes (e.g. ngrok rotation), edit vercel.json instead
+ * of this file — the destination in the rewrite rule is the only place where
+ * the real backend URL lives.
  */
-const API_BASE_URL = "https://dipper-tidy-unwoven.ngrok-free.dev";
+const API_BASE_URL = "/api";
 
 const TAB_ROUTES = new Set([
   "/business-intelligence",
@@ -25,17 +24,7 @@ const TABS = [
   { href: "/website-status", label: "Website Status" },
 ];
 
-/* Configure HTMX defaults — point all hx-get/hx-post at the FastAPI base URL
- * and ship the ngrok skip header on every request. */
-document.addEventListener("htmx:configRequest", (event) => {
-  const path = event.detail.path || "";
-  if (path.startsWith("/")) {
-    event.detail.path = `${API_BASE_URL}${path}`;
-  }
-  event.detail.headers["ngrok-skip-browser-warning"] = "true";
-});
-
-/* ---------- JSON API (sidebar, new form, things HTMX doesn't drive) ---------- */
+/* ---------- API client ---------- */
 
 async function api(path, opts = {}) {
   const headers = { "ngrok-skip-browser-warning": "true" };
@@ -72,14 +61,33 @@ function listFromResponse(data) {
 
 const apiClient = {
   actionItems: {
+    list: (params = {}) => api(`/action-items/?${qs(params)}`).then(listFromResponse),
+    byClient: (id, params = {}) => api(`/action-items/client/${id}?${qs(params)}`).then(listFromResponse),
+    get: (id) => api(`/action-items/id/${id}`),
     create: (input) => api("/action-items/new/", { method: "POST", body: input }),
+    update: (id, input) => api(`/action-items/update/${id}`, { method: "POST", body: input }),
+    remove: (id) => api(`/action-items/delete/${id}`),
+  },
+  comments: {
+    list: (id) => api(`/comments/loop/${id}`).then(listFromResponse),
+    thread: (id) => api(`/comments/thread/${id}`).then(listFromResponse),
+    post: (input) => api("/comments/post/", { method: "POST", body: input }),
+    postSub: (input) => api("/comments/post-sub/", { method: "POST", body: input }),
   },
   clients: {
     all: () => api("/clients/all/").then(listFromResponse),
   },
 };
 
-/* ---------- Hash routing helpers ---------- */
+function qs(obj) {
+  const params = new URLSearchParams();
+  Object.entries({ page: 1, limit: 50, order: "desc", ...obj }).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) params.set(k, v);
+  });
+  return params.toString();
+}
+
+/* ---------- Hash routing ---------- */
 
 function parseHash() {
   const raw = window.location.hash.replace(/^#/, "") || "/";
@@ -103,16 +111,24 @@ function tabHref(href, clientId) {
   return clientId ? buildHash(href, { client_id: clientId }) : buildHash(href);
 }
 
-/* HTMX returns HX-Redirect headers as window.location changes. The backend
- * sets them as hash URLs like "/#/action-items" — we intercept and convert
- * to a real hash change. */
-document.addEventListener("htmx:beforeOnLoad", (event) => {
-  const redirect = event.detail.xhr.getResponseHeader("HX-Redirect");
-  if (redirect && redirect.startsWith("/#")) {
-    event.preventDefault();
-    window.location.hash = redirect.replace(/^\/#/, "");
-  }
-});
+function priorityClass(p) {
+  const key = (p || "").toLowerCase();
+  if (key === "high") return "pill pill-priority-high";
+  if (key === "medium") return "pill pill-priority-medium";
+  if (key === "low") return "pill pill-priority-low";
+  return "pill";
+}
+
+function statusClass(s) {
+  const key = (s || "").toLowerCase().replace(/\s+/g, "-");
+  return `pill pill-status-${key}`;
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
 
 /* ---------- Root Alpine component ---------- */
 
@@ -120,10 +136,13 @@ function app() {
   return {
     route: parseHash(),
     sidebarFilter: "",
+
     clients: [],
     clientsError: null,
+    pageData: null,
+    pageError: null,
+    pageLoading: false,
 
-    /* derived */
     get clientId() { return this.route.clientId; },
     get clientName() {
       if (!this.clientId) return null;
@@ -154,20 +173,12 @@ function app() {
     },
     get tabsVisible() { return !!this.clientId; },
 
-    /* HTMX URLs used by the page templates */
-    get detailId() { return this.route.segments[1]; },
-    get detailUrl() {
-      const q = this.clientId ? `?client_id=${this.clientId}` : "";
-      return `/action-items/id/${this.detailId}/html/${q}`;
-    },
-
-    /* lifecycle */
     init() {
       this.loadClients();
+      this.onRouteChange();
       window.addEventListener("hashchange", () => {
         this.route = parseHash();
-        /* Alpine re-renders the page template; HTMX picks up the new
-         * hx-get and fires on load automatically. */
+        this.onRouteChange();
       });
     },
     async loadClients() {
@@ -177,8 +188,18 @@ function app() {
         this.clientsError = `Failed to load clients (${e.status || "network"})`;
       }
     },
+    async onRouteChange() {
+      this.pageData = null;
+      this.pageError = null;
+      const key = this.pageKey;
+      try {
+        if (key === "action-items") await this.loadActionItems();
+        else if (key === "action-items-detail") await this.loadDetail();
+      } catch (e) {
+        this.pageError = `Failed to load (${e.status || "network"})`;
+      }
+    },
 
-    /* helpers */
     tabUrl(href) { return tabHref(href, this.clientId); },
     sidebarHref(client) {
       const base = TAB_ROUTES.has(this.pathRoot) && this.clientId ? this.pathRoot : "/business-intelligence";
@@ -186,18 +207,118 @@ function app() {
     },
     isTabActive(href) { return this.pathRoot === href; },
     isClientActive(client) { return String(this.clientId) === String(client.id); },
-    TABS,
 
-    /* ============== New form (still JSON — simpler than HTMX redirect dance) ============== */
+    priorityClass, statusClass, formatDate, TABS,
+
+    /* ============== Action items list ============== */
+    listFilter: "critical",
+    async loadActionItems() {
+      this.pageLoading = true;
+      try {
+        const items = this.clientId
+          ? await apiClient.actionItems.byClient(this.clientId)
+          : await apiClient.actionItems.list();
+        this.pageData = { items };
+      } finally {
+        this.pageLoading = false;
+      }
+    },
+    get listItems() {
+      const all = this.pageData?.items ?? [];
+      return all.filter((it) => this.listFilter === "critical" ? !!it.critical : !it.critical);
+    },
+
+    /* ============== Detail + comments ============== */
+    detailItem: null,
+    detailComments: [],
+    detailEditing: false,
+    detailForm: { title: "", description: "", priority: "low", status: "pending", critical: false },
+    detailSaving: false,
+    commentText: "",
+    commentPosting: false,
+    threadCache: {},
+    async loadDetail() {
+      const id = Number(this.route.segments[1]);
+      if (!Number.isFinite(id)) return;
+      const [item, comments] = await Promise.all([
+        apiClient.actionItems.get(id),
+        apiClient.comments.list(id).catch(() => []),
+      ]);
+      this.detailItem = item;
+      this.detailComments = comments;
+      this.detailEditing = false;
+      this.detailForm = {
+        title: item?.title ?? "",
+        description: item?.description ?? "",
+        priority: item?.priority ?? "low",
+        status: item?.status ?? "pending",
+        critical: !!item?.critical,
+      };
+      this.threadCache = {};
+    },
+    async saveDetail() {
+      if (!this.detailItem) return;
+      this.detailSaving = true;
+      try {
+        await apiClient.actionItems.update(this.detailItem.id, this.detailForm);
+        await this.loadDetail();
+      } catch (e) {
+        alert(`Save failed: ${e.status || e.message}`);
+      } finally {
+        this.detailSaving = false;
+      }
+    },
+    async deleteDetail() {
+      if (!this.detailItem) return;
+      if (!confirm("Delete this action item? This cannot be undone.")) return;
+      try {
+        await apiClient.actionItems.remove(this.detailItem.id);
+        window.location.hash = tabHref("/action-items", this.clientId);
+      } catch (e) {
+        alert(`Delete failed: ${e.status || e.message}`);
+      }
+    },
+    async postComment() {
+      if (!this.commentText.trim() || !this.detailItem) return;
+      this.commentPosting = true;
+      try {
+        await apiClient.comments.post({
+          action_item: this.detailItem.id,
+          text: this.commentText.trim(),
+        });
+        this.commentText = "";
+        this.detailComments = await apiClient.comments.list(this.detailItem.id);
+      } catch (e) {
+        alert(`Post failed: ${e.status || e.message}`);
+      } finally {
+        this.commentPosting = false;
+      }
+    },
+    async loadThread(parentId) {
+      try {
+        this.threadCache[parentId] = await apiClient.comments.thread(parentId);
+      } catch (e) {
+        alert(`Failed to load thread: ${e.status || e.message}`);
+      }
+    },
+    async postSubComment(parentId, text) {
+      if (!text.trim()) return;
+      try {
+        await apiClient.comments.postSub({ comment_parent: parentId, text: text.trim() });
+        await this.loadThread(parentId);
+      } catch (e) {
+        alert(`Reply failed: ${e.status || e.message}`);
+      }
+    },
+
+    /* ============== New form ============== */
     newForm: { title: "", description: "", client_id: "", priority: "low", critical: false },
     newSaving: false,
     initNewForm() {
       this.newForm = {
-        title: "",
-        description: "",
+        title: "", description: "",
         client_id: this.clientId ?? "",
-        priority: "low",
-        critical: false,
+        priority: "low", critical: false,
       };
     },
     async submitNew() {
@@ -217,28 +338,31 @@ function app() {
   };
 }
 
-/* Per-page Alpine factory: action items list (Critical/Regular toggle that
- * drives an HTMX re-fetch of the table body). */
-function actionItemsList() {
+window.app = app;
+window.commentRow = function (comment, root) {
   return {
-    filter: "critical",
-    get rowsUrl() {
-      const params = new URLSearchParams({ filter: this.filter });
-      const hash = parseHash();
-      if (hash.clientId) params.set("client_id", hash.clientId);
-      return `/action-items/html/?${params.toString()}`;
-    },
-    setFilter(next) {
-      this.filter = next;
-      /* Wait a tick for :hx-get binding to update, then re-fire the load. */
-      this.$nextTick(() => {
-        if (window.htmx) {
-          window.htmx.trigger("#items-rows", "refresh-rows");
+    replying: false,
+    replyText: "",
+    get thread() { return root.threadCache[comment.id]; },
+    get loading() { return root.threadCache[comment.id] === "loading"; },
+    async toggleThread() {
+      if (root.threadCache[comment.id]) {
+        delete root.threadCache[comment.id];
+      } else {
+        root.threadCache[comment.id] = "loading";
+        try {
+          root.threadCache[comment.id] = await apiClient.comments.thread(comment.id);
+        } catch (e) {
+          alert(`Failed to load thread: ${e.status || e.message}`);
+          delete root.threadCache[comment.id];
         }
-      });
+      }
+    },
+    async submitReply() {
+      if (!this.replyText.trim()) return;
+      await root.postSubComment(comment.id, this.replyText.trim());
+      this.replyText = "";
+      this.replying = false;
     },
   };
-}
-
-window.app = app;
-window.actionItemsList = actionItemsList;
+};
