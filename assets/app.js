@@ -148,6 +148,9 @@ function app() {
   return {
     route: parseHash(),
     sidebarFilter: "",
+    sidebarLetter: "",
+    sidebarPage: 1,
+    sidebarPageSize: 10,
 
     clients: [],
     clientsError: null,
@@ -161,10 +164,48 @@ function app() {
       const found = this.clients.find((c) => String(c.id) === String(this.clientId));
       return found?.name ?? `Client #${this.clientId}`;
     },
+    get sidebarAlphabet() {
+      return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    },
+    get availableLetters() {
+      const set = new Set();
+      for (const c of this.clients) {
+        const first = (c.name || "").trim().charAt(0).toUpperCase();
+        if (first >= "A" && first <= "Z") set.add(first);
+      }
+      return set;
+    },
     get filteredClients() {
       const q = this.sidebarFilter.trim().toLowerCase();
-      if (!q) return this.clients;
-      return this.clients.filter((c) => (c.name || "").toLowerCase().includes(q));
+      const letter = this.sidebarLetter;
+      return this.clients.filter((c) => {
+        const name = (c.name || "").toLowerCase();
+        if (q && !name.includes(q)) return false;
+        if (letter && !name.startsWith(letter.toLowerCase())) return false;
+        return true;
+      });
+    },
+    get pagedClients() {
+      const start = (this.sidebarPage - 1) * this.sidebarPageSize;
+      return this.filteredClients.slice(start, start + this.sidebarPageSize);
+    },
+    get sidebarTotalPages() {
+      return Math.max(1, Math.ceil(this.filteredClients.length / this.sidebarPageSize));
+    },
+    setSidebarLetter(letter) {
+      this.sidebarLetter = this.sidebarLetter === letter ? "" : letter;
+      this.sidebarPage = 1;
+    },
+    resetSidebarFilters() {
+      this.sidebarLetter = "";
+      this.sidebarFilter = "";
+      this.sidebarPage = 1;
+    },
+    prevSidebarPage() {
+      if (this.sidebarPage > 1) this.sidebarPage--;
+    },
+    nextSidebarPage() {
+      if (this.sidebarPage < this.sidebarTotalPages) this.sidebarPage++;
     },
     get pathRoot() { return "/" + (this.route.segments[0] || ""); },
     get pageKey() {

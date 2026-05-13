@@ -51,13 +51,39 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:0.5rem; top:50%; transform:translateY(-50%); color:var(--color-muted-foreground); pointer-events:none;">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
-              <input class="input" placeholder="Search clients..." x-model="sidebarFilter" style="padding-left:1.75rem;" />
+              <input
+                class="input"
+                placeholder="Search clients..."
+                x-model="sidebarFilter"
+                @input="sidebarPage = 1"
+                style="padding-left:1.75rem;"
+              />
             </div>
 
             <a class="btn btn-primary" :href="'#/action-items/new' + (clientId ? '?client_id=' + clientId : '')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               New Entry
             </a>
+
+            <div class="alphabet-strip">
+              <button
+                type="button"
+                class="alpha-chip"
+                :class="sidebarLetter === '' ? 'active' : ''"
+                @click="resetSidebarFilters()"
+                title="Show all clients"
+              >All</button>
+              <template x-for="letter in sidebarAlphabet" :key="letter">
+                <button
+                  type="button"
+                  class="alpha-chip"
+                  :class="[sidebarLetter === letter ? 'active' : '', !availableLetters.has(letter) ? 'muted' : '']"
+                  :disabled="!availableLetters.has(letter)"
+                  @click="setSidebarLetter(letter)"
+                  x-text="letter"
+                ></button>
+              </template>
+            </div>
 
             <ul class="sidebar-clients">
               <template x-if="clients.length === 0 && !clientsError">
@@ -66,12 +92,37 @@
               <template x-if="clientsError">
                 <li class="alert-error" x-text="clientsError"></li>
               </template>
-              <template x-for="c in filteredClients" :key="c.id">
+              <template x-if="clients.length > 0 && filteredClients.length === 0">
+                <li style="padding: 0.75rem; font-size: 0.75rem; color: var(--color-muted-foreground);">
+                  No matches.
+                </li>
+              </template>
+              <template x-for="c in pagedClients" :key="c.id">
                 <li>
                   <a :href="sidebarHref(c)" :class="isClientActive(c) ? 'active' : ''" x-text="c.name || ('Client #' + c.id)"></a>
                 </li>
               </template>
             </ul>
+
+            <div class="sidebar-pagination" x-show="filteredClients.length > sidebarPageSize" x-cloak>
+              <button
+                type="button"
+                class="alpha-chip"
+                @click="prevSidebarPage()"
+                :disabled="sidebarPage <= 1"
+                aria-label="Previous page"
+              >‹</button>
+              <span class="sidebar-page-info">
+                <span x-text="sidebarPage"></span> / <span x-text="sidebarTotalPages"></span>
+              </span>
+              <button
+                type="button"
+                class="alpha-chip"
+                @click="nextSidebarPage()"
+                :disabled="sidebarPage >= sidebarTotalPages"
+                aria-label="Next page"
+              >›</button>
+            </div>
 
             <div class="sidebar-footer">
               <a href="#">
