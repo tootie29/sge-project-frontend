@@ -81,6 +81,10 @@ const apiClient = {
     byClient: (clientId, params = {}) =>
       api(`/business-intelligence/client/${clientId}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
   },
+  rankTracker: {
+    byClient: (clientId, params = {}) =>
+      api(`/rank-tracker/client/${clientId}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
+  },
 };
 
 function qs(obj) {
@@ -200,6 +204,7 @@ function app() {
         if (key === "action-items") await this.loadActionItems();
         else if (key === "action-items-detail") await this.loadDetail();
         else if (key === "stub-bi") await this.loadBI();
+        else if (key === "stub-rt") await this.loadRankTracker();
       } catch (e) {
         this.pageError = `Failed to load (${e.status || "network"})`;
       }
@@ -347,6 +352,38 @@ function app() {
     },
     toggleBI(id) {
       this.biExpanded[id] = !this.biExpanded[id];
+    },
+
+    /* ============== Rank Tracker ============== */
+    rtItems: [],
+    rtBackendMissing: false,
+    rtLoading: false,
+    async loadRankTracker() {
+      this.rtItems = [];
+      this.rtBackendMissing = false;
+      if (!this.clientId) return;
+      this.rtLoading = true;
+      try {
+        this.rtItems = await apiClient.rankTracker.byClient(this.clientId);
+      } catch (e) {
+        if (e.status === 404 || e.status === 405) {
+          this.rtBackendMissing = true;
+        } else {
+          throw e;
+        }
+      } finally {
+        this.rtLoading = false;
+      }
+    },
+    rtChangeClass(n) {
+      if (typeof n !== "number") return "page-sub";
+      if (n > 0) return "pill pill-status-completed";
+      if (n < 0) return "pill pill-priority-high";
+      return "page-sub";
+    },
+    rtChangeLabel(n) {
+      if (typeof n !== "number" || n === 0) return "0";
+      return (n > 0 ? "↗ +" : "↘ ") + n;
     },
 
     /* ============== New form ============== */

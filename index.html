@@ -433,12 +433,70 @@
               </template>
 
               <template x-if="pageKey === 'stub-rt'">
-                <div class="stack-sm">
-                  <h1 class="page-title">Rank Tracker</h1>
-                  <p class="page-sub" x-text="clientName ? ('Keyword rankings for ' + clientName + '.') : 'Pick a client from the sidebar to view their rankings.'"></p>
-                  <div class="muted-box">
-                    Not wired to the backend yet — there is no rank tracker
-                    table or endpoint in the FastAPI app.
+                <div class="stack">
+                  <div class="between">
+                    <div>
+                      <h1 class="page-title">Rank Tracker</h1>
+                      <p class="page-sub" x-text="clientName ? ('Keyword rankings for ' + clientName + '.') : 'Pick a client from the sidebar to view their rankings.'"></p>
+                    </div>
+                    <div class="row">
+                      <button class="btn btn-outline" style="font-size: 0.8rem;" @click="loadRankTracker()" :disabled="rtLoading">
+                        <span x-text="rtLoading ? 'Refreshing…' : '↓ Export Data'"></span>
+                      </button>
+                      <button class="btn btn-outline" style="font-size: 0.8rem; padding: 0.4rem 0.6rem;" @click="loadRankTracker()" :disabled="rtLoading" aria-label="Refresh">↻</button>
+                    </div>
+                  </div>
+
+                  <template x-if="!clientId">
+                    <div class="muted-box">Pick a client from the sidebar to view their rankings.</div>
+                  </template>
+
+                  <template x-if="clientId && rtBackendMissing">
+                    <div class="muted-box">
+                      <p style="margin: 0 0 0.5rem 0; color: var(--color-foreground);"><strong>Backend endpoint not yet implemented.</strong></p>
+                      <p style="margin: 0 0 0.5rem 0;">Expected:</p>
+                      <pre style="margin: 0 0 0.5rem 0; font-size: 0.75rem; background: var(--color-muted); padding: 0.5rem; border-radius: var(--radius);">GET /rank-tracker/client/{id}
+
+[{
+  "id": 1,
+  "keyword": "Emergency Dentist Maui",
+  "rank": "Page 1 (1)",
+  "page_path": "/emergency-dentistry",
+  "change": 1
+}, ...]</pre>
+                      <p style="margin: 0;">When this endpoint lands in <code>sge-project-001/main.py</code>, this view will populate automatically.</p>
+                    </div>
+                  </template>
+
+                  <template x-if="clientId && !rtBackendMissing && rtItems.length === 0 && !rtLoading">
+                    <div class="muted-box">No keyword rankings for this client yet.</div>
+                  </template>
+
+                  <div x-show="clientId && rtItems.length > 0" class="table-wrap" x-cloak>
+                    <table class="data">
+                      <thead>
+                        <tr>
+                          <th style="width: 8rem;">Rank</th>
+                          <th>Keywords</th>
+                          <th>Page</th>
+                          <th style="width: 6rem; text-align: right;">Change</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="row in rtItems" :key="row.id">
+                          <tr>
+                            <td style="color: var(--color-primary); font-family: var(--font-mono); font-size: 0.8rem;" x-text="row.rank || '—'"></td>
+                            <td style="font-weight: 500;" x-text="row.keyword || '—'"></td>
+                            <td>
+                              <a :href="row.page_url || '#'" style="color: var(--color-primary); text-decoration: underline;" x-text="row.page_path || row.page || '—'"></a>
+                            </td>
+                            <td style="text-align: right;">
+                              <span :class="rtChangeClass(row.change)" x-text="rtChangeLabel(row.change)"></span>
+                            </td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </template>
