@@ -723,7 +723,7 @@
                     <span>Loading rank tracker…</span>
                   </div>
 
-                  <template x-if="clientId && rtBackendMissing">
+                  <template x-if="clientId && rtBackendMissing && !rtLoading && !pageLoading">
                     <div class="muted-box">
                       <p style="margin: 0 0 0.5rem 0; color: var(--color-foreground);"><strong>Backend endpoint not yet implemented.</strong></p>
                       <p style="margin: 0 0 0.5rem 0;">Expected:</p>
@@ -740,11 +740,11 @@
                     </div>
                   </template>
 
-                  <template x-if="clientId && !rtBackendMissing && rtItems.length === 0 && !rtLoading">
+                  <template x-if="clientId && !rtBackendMissing && rtItems.length === 0 && !rtLoading && !pageLoading">
                     <div class="muted-box">No keyword rankings for this client yet.</div>
                   </template>
 
-                  <div x-show="clientId && rtItems.length > 0" class="table-wrap" x-cloak>
+                  <div x-show="clientId && !rtLoading && !pageLoading && rtItems.length > 0" class="table-wrap" x-cloak>
                     <table class="data">
                       <thead>
                         <tr>
@@ -794,7 +794,7 @@
                     <span>Loading website status…</span>
                   </div>
 
-                  <template x-if="clientId && wsBackendMissing">
+                  <template x-if="clientId && wsBackendMissing && !wsLoading && !pageLoading">
                     <div class="muted-box">
                       <p style="margin: 0 0 0.5rem 0; color: var(--color-foreground);"><strong>Backend endpoint not yet implemented.</strong></p>
                       <p style="margin: 0 0 0.5rem 0;">Expected:</p>
@@ -812,11 +812,11 @@
                     </div>
                   </template>
 
-                  <template x-if="clientId && !wsBackendMissing && wsItems.length === 0 && !wsLoading">
+                  <template x-if="clientId && !wsBackendMissing && wsItems.length === 0 && !wsLoading && !pageLoading">
                     <div class="muted-box">No website checks for this client yet.</div>
                   </template>
 
-                  <div x-show="clientId && wsItems.length > 0" class="table-wrap" x-cloak>
+                  <div x-show="clientId && !wsLoading && !pageLoading && wsItems.length > 0" class="table-wrap" x-cloak>
                     <table class="data">
                       <thead>
                         <tr>
