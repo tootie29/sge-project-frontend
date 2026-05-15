@@ -214,6 +214,7 @@ function app() {
       this.sidebarLetter = "";
       this.sidebarFilter = "";
       this.sidebarPage = 1;
+      if (window.location.hash !== "#/") window.location.hash = "#/";
     },
     prevSidebarPage() {
       if (this.sidebarPage > 1) this.sidebarPage--;
