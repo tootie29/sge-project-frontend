@@ -174,6 +174,7 @@ function app() {
     pageData: null,
     pageError: null,
     pageLoading: false,
+    appLoading: true,
 
     get clientId() { return this.route.clientId; },
     get clientName() {
@@ -293,9 +294,14 @@ function app() {
     },
     get tabsVisible() { return !!this.clientId; },
 
-    init() {
-      this.loadClients();
-      this.onRouteChange();
+    async init() {
+      this.appLoading = true;
+      try {
+        await this.loadClients();
+        await this.onRouteChange();
+      } finally {
+        this.appLoading = false;
+      }
       window.addEventListener("hashchange", () => {
         this.route = parseHash();
         this.onRouteChange();
@@ -312,6 +318,16 @@ function app() {
       this.pageData = null;
       this.pageError = null;
       const key = this.pageKey;
+      const needsFetch = [
+        "action-items",
+        "action-items-detail",
+        "stub-bi",
+        "reports",
+        "reports-detail",
+        "stub-rt",
+        "stub-ws",
+      ].includes(key);
+      if (needsFetch) this.pageLoading = true;
       try {
         if (key === "action-items") await this.loadActionItems();
         else if (key === "action-items-detail") await this.loadDetail();
@@ -322,6 +338,8 @@ function app() {
         else if (key === "stub-ws") await this.loadWebsiteStatus();
       } catch (e) {
         this.pageError = `Failed to load (${e.status || "network"})`;
+      } finally {
+        this.pageLoading = false;
       }
     },
 
@@ -338,15 +356,10 @@ function app() {
     /* ============== Action items list ============== */
     listFilter: "critical",
     async loadActionItems() {
-      this.pageLoading = true;
-      try {
-        const items = this.clientId
-          ? await apiClient.actionItems.byClient(this.clientId)
-          : await apiClient.actionItems.list();
-        this.pageData = { items };
-      } finally {
-        this.pageLoading = false;
-      }
+      const items = this.clientId
+        ? await apiClient.actionItems.byClient(this.clientId)
+        : await apiClient.actionItems.list();
+      this.pageData = { items };
     },
     get listItems() {
       const all = this.pageData?.items ?? [];
