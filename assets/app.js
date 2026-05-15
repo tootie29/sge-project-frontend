@@ -165,6 +165,9 @@ function app() {
     sidebarLetter: "",
     sidebarPage: 1,
     sidebarPageSize: 10,
+    suggestionsOpen: false,
+    suggestionIndex: 0,
+    suggestionLimit: 8,
 
     clients: [],
     clientsError: null,
@@ -221,6 +224,51 @@ function app() {
     },
     nextSidebarPage() {
       if (this.sidebarPage < this.sidebarTotalPages) this.sidebarPage++;
+    },
+
+    /* ============== Autocomplete ============== */
+    get suggestions() {
+      const q = this.sidebarFilter.trim().toLowerCase();
+      if (!q) return [];
+      const matches = [];
+      for (const c of this.clients) {
+        const name = (c.name || "").toLowerCase();
+        if (name.includes(q)) matches.push(c);
+        if (matches.length >= this.suggestionLimit) break;
+      }
+      return matches;
+    },
+    openSuggestions() {
+      this.suggestionsOpen = true;
+      this.suggestionIndex = 0;
+    },
+    closeSuggestions() {
+      this.suggestionsOpen = false;
+    },
+    moveSuggestion(dir) {
+      if (!this.suggestionsOpen) this.openSuggestions();
+      const n = this.suggestions.length;
+      if (n === 0) return;
+      this.suggestionIndex = (this.suggestionIndex + dir + n) % n;
+    },
+    chooseSuggestion() {
+      const s = this.suggestions[this.suggestionIndex];
+      if (s) this.pickSuggestion(s);
+    },
+    pickSuggestion(client) {
+      this.closeSuggestions();
+      this.sidebarFilter = "";
+      this.sidebarPage = 1;
+      window.location.hash = this.sidebarHref(client).replace(/^#/, "");
+    },
+    highlightMatch(text, query) {
+      const safe = String(text).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[ch]);
+      const q = (query || "").trim();
+      if (!q) return safe;
+      const escQ = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return safe.replace(new RegExp(escQ, "ig"), (m) => `<mark>${m}</mark>`);
     },
     get pathRoot() { return "/" + (this.route.segments[0] || ""); },
     get pageKey() {
