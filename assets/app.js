@@ -402,19 +402,17 @@ function app() {
       if (!this.clientId) return;
       const items = await apiClient.bi.byClient(this.clientId);
       this.biItems = items;
-      if (items.length > 0) {
-        const first = items.find((i) => i.insight_category)?.insight_category;
-        this.biCategory = first ?? null;
+      if (this.biCategories.length > 0) {
+        this.biCategory = this.biCategories[0];
       }
     },
     get biCategories() {
       const seen = new Set();
-      const out = [];
       for (const i of this.biItems) {
         const c = i.insight_category;
-        if (c && !seen.has(c)) { seen.add(c); out.push(c); }
+        if (c) seen.add(c);
       }
-      return out;
+      return Array.from(seen).sort((a, b) => a.localeCompare(b));
     },
     get biFiltered() {
       if (!this.biCategory) return this.biItems;
