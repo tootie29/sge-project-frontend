@@ -70,31 +70,36 @@ elsewhere. Restart the FastAPI server for the change to take effect.
 - **Single Alpine root**: the entire app is one `<body x-data="app()">`. The
   `app()` factory in `assets/app.js` holds all state and methods.
 - **Per-client scoping**: selecting a client in the sidebar adds
-  `?client_id=N` to the hash. Tabs (BI / Action Items / Rank Tracker /
-  Website Status) only appear once a client is selected; clicking another
-  client preserves whichever tab you're on. First-time selection lands on
-  Business Intelligence.
+  `?client_id=N` to the hash. Tabs (BI / Action Items / Reports / Rank
+  Tracker / Website Status) only appear once a client is selected;
+  clicking another client preserves whichever tab you're on. First-time
+  selection lands on Business Intelligence.
 - **Pages**:
   - `#/` — landing
-  - `#/action-items` — list (Critical / Regular toggle, status pills)
+  - `#/action-items` — list (Critical / Regular toggle, status pills, datetime)
   - `#/action-items/:id` — detail + edit + delete + threaded comments
   - `#/action-items/new` — create form
-  - `#/business-intelligence`, `#/rank-tracker`, `#/website-status` — stubs
-    until those FastAPI endpoints exist
+  - `#/business-intelligence` — insights w/ category sub-tabs + pagination
+  - `#/reports` — submitted reports list (paginated)
+  - `#/reports/:id` — report detail + attachments + reviews thread
+  - `#/rank-tracker`, `#/website-status` — stubs until those FastAPI
+    endpoints exist
   - `#/clients` — clients table
   - `#/login`, `#/auth/callback` — auth stubs
 
 ## Known gaps
 
-- **`DATETIME` column shows `—`**: the FastAPI select string at
-  `sge-project-001/src/includes/classes/database.py:63` doesn't expose
-  `created_at`. Add it to the select and the column populates automatically.
-- **Pagination is on page 1 only** for action items right now (limit 50).
-  Note the backend `range_from` bug at
-  `sge-project-001/src/includes/classes/database.py:71` — pages > 1 return
-  wrong ranges until that's fixed.
-- **Business Intelligence, Rank Tracker, Website Status** are stubs — no
-  backend endpoints yet.
+- **Action-item detail page lacks `created_at`**: the list select now
+  exposes it (`database.py` `DB_loop_action_items.select`), but
+  `DB_action_items.get()` and `.update()` selects still omit
+  `created_at` — so the column on the list view shows a real date but
+  the detail page does not. Add `created_at` to those two selects to
+  fix.
+- **Backend pagination bug**: `range_from = (page-1) * (limit*(page-1))`
+  at `database.py:71` (and repeated for BI/reports) skips the wrong
+  amount on page > 1. Frontend sidesteps it by passing `limit=100` and
+  paginating client-side.
+- **Rank Tracker, Website Status** are stubs — no backend endpoints yet.
 - **Auth** isn't wired. All routes are open.
 
 ## Deploying

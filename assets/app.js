@@ -13,6 +13,7 @@ const API_BASE_URL = "/api";
 const TAB_ROUTES = new Set([
   "/business-intelligence",
   "/action-items",
+  "/reports",
   "/rank-tracker",
   "/website-status",
 ]);
@@ -20,6 +21,7 @@ const TAB_ROUTES = new Set([
 const TABS = [
   { href: "/business-intelligence", label: "Business Intelligence" },
   { href: "/action-items", label: "Action Items" },
+  { href: "/reports", label: "Reports" },
   { href: "/rank-tracker", label: "Rank Tracker" },
   { href: "/website-status", label: "Website Status" },
 ];
@@ -80,6 +82,18 @@ const apiClient = {
   bi: {
     byClient: (clientId, params = {}) =>
       api(`/business-intelligence/client/${clientId}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
+    byClientCategory: (clientId, category, params = {}) =>
+      api(`/business-intelligence/client/${clientId}/category/${encodeURIComponent(category)}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
+  },
+  reports: {
+    byClient: (clientId, params = {}) =>
+      api(`/reports/client/${clientId}?${qs({ limit: 100, ...params })}`).then(listFromResponse),
+    get: (id) => api(`/reports/${id}`),
+    submit: (input) => api("/reports/submit/", { method: "POST", body: input }),
+  },
+  reviews: {
+    listForReport: (reportId) => api(`/reviews/${reportId}`).then(listFromResponse),
+    submit: (input) => api("/reviews/submit/", { method: "POST", body: input }),
   },
   rankTracker: {
     byClient: (clientId, params = {}) =>
@@ -218,6 +232,10 @@ function app() {
       }
       if (seg[0] === "clients") return "clients";
       if (seg[0] === "business-intelligence") return "stub-bi";
+      if (seg[0] === "reports") {
+        if (seg.length === 1) return "reports";
+        return "reports-detail";
+      }
       if (seg[0] === "rank-tracker") return "stub-rt";
       if (seg[0] === "website-status") return "stub-ws";
       if (seg[0] === "login") return "login";
@@ -249,6 +267,8 @@ function app() {
         if (key === "action-items") await this.loadActionItems();
         else if (key === "action-items-detail") await this.loadDetail();
         else if (key === "stub-bi") await this.loadBI();
+        else if (key === "reports") await this.loadReports();
+        else if (key === "reports-detail") await this.loadReportDetail();
         else if (key === "stub-rt") await this.loadRankTracker();
         else if (key === "stub-ws") await this.loadWebsiteStatus();
       } catch (e) {
@@ -415,6 +435,76 @@ function app() {
     nextBiPage() { if (this.biPage < this.biTotalPages) this.biPage++; },
     toggleBI(id) {
       this.biExpanded[id] = !this.biExpanded[id];
+    },
+
+    /* ============== Reports ============== */
+    reportsItems: [],
+    reportsLoading: false,
+    reportsPage: 1,
+    reportsPageSize: 10,
+    reportDetail: null,
+    reportReviews: [],
+    reportLoading: false,
+    reviewText: "",
+    reviewPosting: false,
+    async loadReports() {
+      this.reportsItems = [];
+      this.reportsPage = 1;
+      if (!this.clientId) return;
+      this.reportsLoading = true;
+      try {
+        this.reportsItems = await apiClient.reports.byClient(this.clientId);
+      } finally {
+        this.reportsLoading = false;
+      }
+    },
+    get reportsPaged() {
+      const start = (this.reportsPage - 1) * this.reportsPageSize;
+      return this.reportsItems.slice(start, start + this.reportsPageSize);
+    },
+    get reportsTotalPages() {
+      return Math.max(1, Math.ceil(this.reportsItems.length / this.reportsPageSize));
+    },
+    prevReportsPage() { if (this.reportsPage > 1) this.reportsPage--; },
+    nextReportsPage() { if (this.reportsPage < this.reportsTotalPages) this.reportsPage++; },
+    async loadReportDetail() {
+      const id = Number(this.route.segments[1]);
+      if (!Number.isFinite(id)) return;
+      this.reportLoading = true;
+      this.reportDetail = null;
+      this.reportReviews = [];
+      this.reviewText = "";
+      try {
+        const [report, reviews] = await Promise.all([
+          apiClient.reports.get(id),
+          apiClient.reviews.listForReport(id).catch(() => []),
+        ]);
+        this.reportDetail = report;
+        this.reportReviews = Array.isArray(reviews) ? reviews : [];
+      } finally {
+        this.reportLoading = false;
+      }
+    },
+    async postReview() {
+      if (!this.reviewText.trim() || !this.reportDetail) return;
+      this.reviewPosting = true;
+      try {
+        await apiClient.reviews.submit({
+          id: this.reportDetail.id,
+          content: this.reviewText.trim(),
+        });
+        this.reviewText = "";
+        this.reportReviews = await apiClient.reviews.listForReport(this.reportDetail.id);
+      } catch (e) {
+        alert(`Post review failed: ${e.status || e.message}`);
+      } finally {
+        this.reviewPosting = false;
+      }
+    },
+    reportFileUrls(report) {
+      const raw = report?.file_urls;
+      if (!Array.isArray(raw)) return [];
+      return raw.map((f) => (typeof f === "string" ? { url: f } : f)).filter((f) => f && f.url);
     },
 
     /* ============== Rank Tracker ============== */

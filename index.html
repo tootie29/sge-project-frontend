@@ -190,7 +190,7 @@
                         </template>
                         <template x-for="item in listItems" :key="item.id">
                           <tr>
-                            <td style="color: var(--color-muted-foreground); font-size: 0.75rem;">—</td>
+                            <td style="color: var(--color-muted-foreground); font-size: 0.75rem;" x-text="item.created_at ? formatDate(item.created_at) : '—'"></td>
                             <td><span :class="priorityClass(item.priority)" x-text="item.priority || '—'"></span></td>
                             <td><span :class="statusClass(item.status)" x-text="(item.status || '—').replace(/_/g, ' ')"></span></td>
                             <td>
@@ -499,6 +499,140 @@
                       <button class="btn btn-outline" style="font-size: 0.8rem;" @click="nextBiPage()" :disabled="biPage >= biTotalPages">Next ›</button>
                     </div>
                   </div>
+                </div>
+              </template>
+
+              <!-- ========== Reports list ========== -->
+              <template x-if="pageKey === 'reports'">
+                <div class="stack">
+                  <div class="between">
+                    <div>
+                      <h1 class="page-title">Reports</h1>
+                      <p class="page-sub" x-text="clientName ? ('Submitted reports for ' + clientName + '.') : 'Pick a client from the sidebar to view their reports.'"></p>
+                    </div>
+                    <button class="btn btn-outline" style="font-size: 0.8rem; padding: 0.4rem 0.6rem;" @click="loadReports()" :disabled="reportsLoading" aria-label="Refresh">
+                      <span x-text="reportsLoading ? '…' : '↻'"></span>
+                    </button>
+                  </div>
+
+                  <template x-if="!clientId">
+                    <div class="muted-box">Pick a client from the sidebar to view their reports.</div>
+                  </template>
+
+                  <template x-if="clientId && reportsItems.length === 0 && !reportsLoading">
+                    <div class="muted-box">No reports for this client yet.</div>
+                  </template>
+
+                  <div x-show="clientId && reportsItems.length > 0" class="table-wrap" x-cloak>
+                    <table class="data">
+                      <thead>
+                        <tr>
+                          <th style="width: 11rem;">Datetime</th>
+                          <th>Title</th>
+                          <th style="width: 7rem; text-align: right;">Files</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="report in reportsPaged" :key="report.id">
+                          <tr>
+                            <td style="color: var(--color-muted-foreground); font-size: 0.75rem;" x-text="report.created_at ? formatDate(report.created_at) : '—'"></td>
+                            <td>
+                              <a :href="'#/reports/' + report.id + (clientId ? '?client_id=' + clientId : '')" style="font-weight: 500;" x-text="report.title || '(untitled)'"></a>
+                            </td>
+                            <td style="text-align: right; color: var(--color-muted-foreground); font-size: 0.8rem;" x-text="reportFileUrls(report).length"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div
+                    x-show="clientId && reportsItems.length > reportsPageSize"
+                    x-cloak
+                    style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding-top: 0.5rem;"
+                  >
+                    <p class="page-sub" style="margin: 0;">
+                      Showing <span x-text="(reportsPage - 1) * reportsPageSize + 1"></span>–<span x-text="Math.min(reportsPage * reportsPageSize, reportsItems.length)"></span>
+                      of <span x-text="reportsItems.length"></span>
+                    </p>
+                    <div class="row">
+                      <button class="btn btn-outline" style="font-size: 0.8rem;" @click="prevReportsPage()" :disabled="reportsPage <= 1">‹ Previous</button>
+                      <span class="page-sub" style="min-width: 4.5rem; text-align: center;">
+                        Page <span x-text="reportsPage"></span> / <span x-text="reportsTotalPages"></span>
+                      </span>
+                      <button class="btn btn-outline" style="font-size: 0.8rem;" @click="nextReportsPage()" :disabled="reportsPage >= reportsTotalPages">Next ›</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- ========== Report detail + reviews ========== -->
+              <template x-if="pageKey === 'reports-detail'">
+                <div class="stack">
+                  <a class="btn btn-ghost" :href="'#/reports' + (clientId ? '?client_id=' + clientId : '')">← Back to reports</a>
+
+                  <template x-if="reportLoading && !reportDetail">
+                    <div class="muted-box">Loading report…</div>
+                  </template>
+
+                  <template x-if="reportDetail">
+                    <article class="card stack">
+                      <div>
+                        <h1 class="page-title" x-text="reportDetail.title || '(untitled)'"></h1>
+                        <p class="page-sub">
+                          <span style="font-family: var(--font-mono);" x-text="'#' + reportDetail.id"></span>
+                          <template x-if="reportDetail.client">
+                            <span x-text="' · ' + (reportDetail.client.name || ('Client #' + reportDetail.client.id))"></span>
+                          </template>
+                          <template x-if="reportDetail.created_at">
+                            <span x-text="' · ' + formatDate(reportDetail.created_at)"></span>
+                          </template>
+                        </p>
+                      </div>
+
+                      <p style="white-space: pre-wrap; font-size: 0.9rem;" x-text="reportDetail.content || '—'"></p>
+
+                      <template x-if="reportFileUrls(reportDetail).length > 0">
+                        <div class="stack-sm">
+                          <h2 style="font-size: 0.9rem; font-weight: 600; margin: 0;">Attachments</h2>
+                          <ul style="margin: 0; padding-left: 1.25rem;">
+                            <template x-for="(f, idx) in reportFileUrls(reportDetail)" :key="idx">
+                              <li>
+                                <a :href="f.url" target="_blank" rel="noopener" style="color: var(--color-primary); text-decoration: underline; word-break: break-all;" x-text="f.url"></a>
+                              </li>
+                            </template>
+                          </ul>
+                        </div>
+                      </template>
+                    </article>
+                  </template>
+
+                  <section x-show="reportDetail" x-cloak>
+                    <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem;">Reviews</h2>
+
+                    <form class="card stack-sm" style="padding: 0.75rem;" @submit.prevent="postReview()">
+                      <textarea class="input" rows="3" placeholder="Add a review…" x-model="reviewText" required></textarea>
+                      <button type="submit" class="btn btn-primary" :disabled="reviewPosting" x-text="reviewPosting ? 'Posting…' : 'Post review'" style="align-self: flex-start;"></button>
+                    </form>
+
+                    <template x-if="reportReviews.length === 0">
+                      <p class="page-sub" style="margin-top: 1rem;">No reviews yet.</p>
+                    </template>
+
+                    <ul style="margin-top: 0.75rem; padding: 0; list-style: none;">
+                      <template x-for="rv in reportReviews" :key="rv.id">
+                        <li class="comment">
+                          <p class="comment-meta">
+                            #<span x-text="rv.id"></span>
+                            <template x-if="rv.created_at">
+                              <span> · <span x-text="formatDate(rv.created_at)"></span></span>
+                            </template>
+                          </p>
+                          <p class="comment-body" x-text="rv.content || ''"></p>
+                        </li>
+                      </template>
+                    </ul>
+                  </section>
                 </div>
               </template>
 
