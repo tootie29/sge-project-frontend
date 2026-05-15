@@ -222,12 +222,11 @@
                           <th style="width: 7rem;">Priority</th>
                           <th style="width: 9rem;">Status</th>
                           <th>Title</th>
-                          <th style="width: 6rem; text-align: right;">Flag</th>
                         </tr>
                       </thead>
                       <tbody>
                         <template x-if="listItems.length === 0 && !pageLoading">
-                          <tr class="empty-row"><td colspan="5">No <span x-text="listFilter"></span> action items.</td></tr>
+                          <tr class="empty-row"><td colspan="4">No <span x-text="listFilter"></span> action items.</td></tr>
                         </template>
                         <template x-for="item in listItems" :key="item.id">
                           <tr>
@@ -236,11 +235,6 @@
                             <td><span :class="statusClass(item.status)" x-text="(item.status || '—').replace(/_/g, ' ')"></span></td>
                             <td>
                               <a :href="'#/action-items/' + item.id + (clientId ? '?client_id=' + clientId : '')" style="font-weight: 500;" x-text="item.title || '(untitled)'"></a>
-                            </td>
-                            <td style="text-align: right;">
-                              <template x-if="item.critical">
-                                <span class="pill pill-critical">Critical</span>
-                              </template>
                             </td>
                           </tr>
                         </template>
