@@ -408,7 +408,7 @@ textarea.input { resize: vertical; font-family: inherit; }
 .pill-status-requested { border-color: color-mix(in oklab, var(--color-violet) 40%, transparent); background: color-mix(in oklab, var(--color-violet) 15%, transparent); color: var(--color-violet); }
 .pill-status-scheduled { border-color: color-mix(in oklab, var(--color-sky) 40%, transparent); background: color-mix(in oklab, var(--color-sky) 15%, transparent); color: var(--color-sky); }
 .pill-status-completed { border-color: color-mix(in oklab, var(--color-emerald) 40%, transparent); background: color-mix(in oklab, var(--color-emerald) 15%, transparent); color: var(--color-emerald); }
-.pill-critical { background: var(--color-destructive); color: white; font-weight: 600; letter-spacing: 0.05em; border-color: color-mix(in oklab, var(--color-destructive) 60%, transparent); }
+.pill-critical { background: var(--color-destructive); color: white; border-color: color-mix(in oklab, var(--color-destructive) 60%, transparent); }
 
 /* ------- tables ------- */
 

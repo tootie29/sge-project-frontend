@@ -229,7 +229,7 @@
                             </td>
                             <td style="text-align: right;">
                               <template x-if="item.critical">
-                                <span class="pill pill-critical">CRITICAL</span>
+                                <span class="pill pill-critical">Critical</span>
                               </template>
                             </td>
                           </tr>
@@ -260,7 +260,7 @@
                         <span :class="priorityClass(detailItem.priority)" x-text="detailItem.priority || '—'"></span>
                         <span :class="statusClass(detailItem.status)" x-text="(detailItem.status || '—').replace(/_/g, ' ')"></span>
                         <template x-if="detailItem.critical">
-                          <span class="pill pill-critical">CRITICAL</span>
+                          <span class="pill pill-critical">Critical</span>
                         </template>
                       </div>
                     </div>
