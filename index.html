@@ -182,12 +182,6 @@
             </nav>
 
             <div class="page">
-              <!-- ========== Tab loader ========== -->
-              <div class="tab-loader" x-show="pageLoading" x-cloak aria-live="polite" aria-busy="true">
-                <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
-                <span x-text="'Loading ' + (pageKey || '...').toString().replace(/-/g, ' ')"></span>
-              </div>
-
               <!-- ========== Home ========== -->
               <template x-if="pageKey === 'home'">
                 <div class="center-stack">
@@ -215,7 +209,12 @@
                     </div>
                   </div>
 
-                  <div class="table-wrap">
+                  <div class="tab-loader" x-show="pageLoading" x-cloak aria-live="polite" aria-busy="true">
+                    <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Loading action items…</span>
+                  </div>
+
+                  <div class="table-wrap" x-show="!pageLoading" x-cloak>
                     <table class="data">
                       <thead>
                         <tr>
@@ -251,8 +250,19 @@
                 </div>
               </template>
 
+              <!-- ========== Action item detail loader ========== -->
+              <template x-if="pageKey === 'action-items-detail' && pageLoading">
+                <div class="stack">
+                  <a class="btn btn-ghost" :href="'#/action-items' + (clientId ? '?client_id=' + clientId : '')">← Back to list</a>
+                  <div class="tab-loader" aria-live="polite" aria-busy="true">
+                    <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Loading action item…</span>
+                  </div>
+                </div>
+              </template>
+
               <!-- ========== Action item detail ========== -->
-              <template x-if="pageKey === 'action-items-detail' && detailItem">
+              <template x-if="pageKey === 'action-items-detail' && detailItem && !pageLoading">
                 <div class="stack">
                   <a class="btn btn-ghost" :href="'#/action-items' + (clientId ? '?client_id=' + clientId : '')">← Back to list</a>
 
@@ -477,7 +487,12 @@
                     <div class="muted-box">Pick a client from the sidebar to view their insights.</div>
                   </template>
 
-                  <template x-if="clientId && biCategories.length > 1">
+                  <div class="tab-loader" x-show="clientId && pageLoading" x-cloak aria-live="polite" aria-busy="true">
+                    <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Loading insights…</span>
+                  </div>
+
+                  <template x-if="clientId && !pageLoading && biCategories.length > 1">
                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                       <template x-for="cat in biCategories" :key="cat">
                         <button
@@ -494,7 +509,7 @@
                     <div class="muted-box">No insights for this client yet.</div>
                   </template>
 
-                  <ul x-show="clientId && biFiltered.length > 0" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem;">
+                  <ul x-show="clientId && !pageLoading && biFiltered.length > 0" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem;">
                     <template x-for="insight in biPaged" :key="insight.id">
                       <li class="card" style="padding: 0;">
                         <button
@@ -561,11 +576,16 @@
                     <div class="muted-box">Pick a client from the sidebar to view their reports.</div>
                   </template>
 
-                  <template x-if="clientId && reportsItems.length === 0 && !reportsLoading">
+                  <div class="tab-loader" x-show="clientId && (pageLoading || reportsLoading)" x-cloak aria-live="polite" aria-busy="true">
+                    <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Loading reports…</span>
+                  </div>
+
+                  <template x-if="clientId && reportsItems.length === 0 && !reportsLoading && !pageLoading">
                     <div class="muted-box">No reports for this client yet.</div>
                   </template>
 
-                  <div x-show="clientId && reportsItems.length > 0" class="table-wrap" x-cloak>
+                  <div x-show="clientId && !pageLoading && !reportsLoading && reportsItems.length > 0" class="table-wrap" x-cloak>
                     <table class="data">
                       <thead>
                         <tr>
@@ -612,6 +632,11 @@
               <template x-if="pageKey === 'reports-detail'">
                 <div class="stack">
                   <a class="btn btn-ghost" :href="'#/reports' + (clientId ? '?client_id=' + clientId : '')">← Back to reports</a>
+
+                  <div class="tab-loader" x-show="pageLoading || reportLoading" x-cloak aria-live="polite" aria-busy="true">
+                    <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Loading report…</span>
+                  </div>
 
                   <template x-if="reportDetail">
                     <article class="card stack">
@@ -693,6 +718,11 @@
                     <div class="muted-box">Pick a client from the sidebar to view their rankings.</div>
                   </template>
 
+                  <div class="tab-loader" x-show="clientId && (pageLoading || rtLoading)" x-cloak aria-live="polite" aria-busy="true">
+                    <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Loading rank tracker…</span>
+                  </div>
+
                   <template x-if="clientId && rtBackendMissing">
                     <div class="muted-box">
                       <p style="margin: 0 0 0.5rem 0; color: var(--color-foreground);"><strong>Backend endpoint not yet implemented.</strong></p>
@@ -758,6 +788,11 @@
                   <template x-if="!clientId">
                     <div class="muted-box">Pick a client from the sidebar to view their website status.</div>
                   </template>
+
+                  <div class="tab-loader" x-show="clientId && (pageLoading || wsLoading)" x-cloak aria-live="polite" aria-busy="true">
+                    <span class="tab-loader__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Loading website status…</span>
+                  </div>
 
                   <template x-if="clientId && wsBackendMissing">
                     <div class="muted-box">
